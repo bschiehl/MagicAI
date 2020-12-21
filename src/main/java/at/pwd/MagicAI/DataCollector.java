@@ -320,7 +320,7 @@ public class DataCollector {
         myMancalaState.setCurrentPlayer(0);
         final MyMancalaGame originalGame = new MyMancalaGame(myMancalaState, myMancalaBoard);
 
-        MancalaAgent player1 = new TU_SGP_MagicAI_AI();
+        MancalaAgent player1 = new DefaultMCTS();
         MancalaAgent player2 = new MagicAITest();
         MancalaAgent currentPlayer = player1;
         MyMancalaGame game;
