@@ -1,0 +1,15 @@
+plugins {
+    id 'java'
+}
+
+group 'at.pwd.MagicAI'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+    compile files('lib/mancala-engine.jar', 'lib/h2-1.4.199.jar', 'lib/lib/simple-xml-2.7.jar', 'lib/lib/stax-1.2.0.jar', 'lib/lib/stax-api-1.0.1.jar', 'lib/lib/xpp3-1.1.3.3.jar')
+}

@@ -1,0 +1,11 @@
+<config>
+   <agents>
+      <agent>
+         <path>C:\Users\bernh\Documents\TU\7. Semester\SGP\MagicAI\lib\agents\mctsagent-1.0-SNAPSHOT.jar</path>
+         <classname>at.pwd.mctsagent.MancalaMCTSAgent</classname>
+      </agent>
+   </agents>
+   <computation-time>60</computation-time>
+   <stones-per-slot>6</stones-per-slot>
+   <slots-per-player>6</slots-per-player>
+</config>
