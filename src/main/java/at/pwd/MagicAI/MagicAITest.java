@@ -17,6 +17,14 @@ public class MagicAITest implements MancalaAgent {
     private MancalaState originalState;
     private static final double C = 1.0f/Math.sqrt(2.0f);
     private static Connection connection;
+    private static PreparedStatement selectBoardstate;
+    private static PreparedStatement updateBoardstateTimesSeen;
+    private static PreparedStatement insertBoardstate;
+    private static PreparedStatement selectChosenSlots;
+    private static PreparedStatement insertChosenSlots;
+    private static PreparedStatement updateChosenSlotsTimesWon;
+    private static PreparedStatement updateChosenSlotsTimesLost;
+    private static PreparedStatement selectSlots;
 
     private class MCTSTree {
         private int visitCount;
@@ -87,6 +95,32 @@ public class MagicAITest implements MancalaAgent {
             Class driver = Class.forName("org.h2.Driver");
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
+        }
+        try {
+            connection = DriverManager.getConnection("jdbc:h2:./data", "", "");
+            selectBoardstate = connection.prepareStatement("SELECT id, times_seen FROM boardstate WHERE slot1 = ?" +
+                    "AND slot2 = ? AND slot3 = ? AND slot4 = ? AND slot5 = ? AND " +
+                    "slot6 = ? AND opponent_slot1 = ? AND opponent_slot2 = ? AND opponent_slot3 = ? AND " +
+                    "opponent_slot4 = ? AND opponent_slot5 = ? AND opponent_slot6 = ?");
+//            updateBoardstateTimesSeen = connection.prepareStatement("UPDATE boardstate SET " +
+//                    "times_seen = ? WHERE id = ?");
+//            insertBoardstate = connection.prepareStatement("INSERT INTO boardstate VALUES " +
+//                    "(null, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)");
+//            selectChosenSlots = connection.prepareStatement("SELECT id, times_won, times_lost FROM" +
+//                    " chosen_slots WHERE boardstate_id = ? AND chosen_slot = ?");
+//            insertChosenSlots = connection.prepareStatement("INSERT INTO chosen_slots VALUES " +
+//                    "(null, ?, ?, ?, ?)");
+//            updateChosenSlotsTimesWon = connection.prepareStatement("UPDATE chosen_slots SET " +
+//                    "times_won = ? WHERE id = ?");
+//            updateChosenSlotsTimesLost = connection.prepareStatement("UPDATE chosen_slots SET " +
+//                    "times_lost = ? WHERE id = ?");
+            selectSlots = connection.prepareStatement("SELECT * FROM chosen_slots WHERE " +
+                    "boardstate_id = ?");
+        } catch (SQLException throwables) {
+            throwables.printStackTrace();
+        }
+        if (connection != null) {
+            System.out.println("connection established");
         }
     }
 
@@ -167,19 +201,9 @@ public class MagicAITest implements MancalaAgent {
 
     private void saveToDatabase(List<Boardstate> statesAndSlots, WinState state) {
         long boardstateId = 0;
-        PreparedStatement selectBoardstate = null;
-        PreparedStatement updateBoardstateTimesSeen = null;
-        PreparedStatement insertBoardstate = null;
-        PreparedStatement selectChosenSlots = null;
-        PreparedStatement insertChosenSlots = null;
-        PreparedStatement updateChosenSlotsTimesWon = null;
-        PreparedStatement updateChosenSlotsTimesLost = null;
+
         for (Boardstate boardstate: statesAndSlots) {
             try {
-                selectBoardstate = connection.prepareStatement("SELECT id, times_seen FROM boardstate WHERE slot1 = ?" +
-                        "AND slot2 = ? AND slot3 = ? AND slot4 = ? AND slot5 = ? AND " +
-                        "slot6 = ? AND opponent_slot1 = ? AND opponent_slot2 = ? AND opponent_slot3 = ? AND " +
-                        "opponent_slot4 = ? AND opponent_slot5 = ? AND opponent_slot6 = ?");
                 selectBoardstate.setInt(1, boardstate.slot1);
                 selectBoardstate.setInt(2, boardstate.slot2);
                 selectBoardstate.setInt(3, boardstate.slot3);
@@ -196,14 +220,10 @@ public class MagicAITest implements MancalaAgent {
                 if (resultSet.last()) {
                     boardstateId = resultSet.getLong("id");
                     int timesSeen = resultSet.getInt("times_seen");
-                    updateBoardstateTimesSeen = connection.prepareStatement("UPDATE boardstate SET " +
-                            "times_seen = ? WHERE id = ?");
                     updateBoardstateTimesSeen.setInt(1, timesSeen + 1);
                     updateBoardstateTimesSeen.setLong(2, boardstateId);
                     updateBoardstateTimesSeen.executeUpdate();
                 } else {
-                    insertBoardstate = connection.prepareStatement("INSERT INTO boardstate VALUES " +
-                            "(null, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)");
                     insertBoardstate.setInt(1, boardstate.slot1);
                     insertBoardstate.setInt(2, boardstate.slot2);
                     insertBoardstate.setInt(3, boardstate.slot3);
@@ -226,8 +246,6 @@ public class MagicAITest implements MancalaAgent {
                 }
                 boolean hasWon = state.getPlayerId() == boardstate.current_player;
 
-                selectChosenSlots = connection.prepareStatement("SELECT id, times_won, times_lost FROM" +
-                        " chosen_slots WHERE boardstate_id = ? AND chosen_slot = ?");
                 selectChosenSlots.setLong(1, boardstateId);
                 selectChosenSlots.setInt(2, boardstate.chosen_slot);
                 resultSet = selectChosenSlots.executeQuery();
@@ -235,22 +253,16 @@ public class MagicAITest implements MancalaAgent {
                     int chosenSlotsId = resultSet.getInt("id");
                     if (hasWon) {
                         int timesWon = resultSet.getInt("times_won");
-                        updateChosenSlotsTimesWon = connection.prepareStatement("UPDATE chosen_slots SET " +
-                                "times_won = ? WHERE id = ?");
                         updateChosenSlotsTimesWon.setInt(1, timesWon + 1);
                         updateChosenSlotsTimesWon.setInt(2, chosenSlotsId);
                         updateChosenSlotsTimesWon.executeUpdate();
                     } else {
                         int timesLost = resultSet.getInt("times_lost");
-                        updateChosenSlotsTimesLost = connection.prepareStatement("UPDATE chosen_slots SET " +
-                                "times_lost = ? WHERE id = ?");
                         updateChosenSlotsTimesLost.setInt(1, timesLost + 1);
                         updateChosenSlotsTimesLost.setInt(2, chosenSlotsId);
                         updateChosenSlotsTimesLost.executeUpdate();
                     }
                 } else {
-                    insertChosenSlots = connection.prepareStatement("INSERT INTO chosen_slots VALUES " +
-                            "(null, ?, ?, ?, ?)");
                     insertChosenSlots.setLong(1, boardstateId);
                     insertChosenSlots.setInt(2, boardstate.chosen_slot);
                     if (hasWon) {
@@ -268,10 +280,55 @@ public class MagicAITest implements MancalaAgent {
         }
     }
 
+    private double getBookWeight(int numberOfStones) {
+        return (7.0/12960) * (numberOfStones * numberOfStones) - (13.0/360) * numberOfStones + (4.0/5);
+    }
+
+    private int getBookMove(Boardstate boardstate) {
+        long boardstateId = 0;
+        int bestSlot = -1;
+        try {
+            selectBoardstate.setInt(1, boardstate.slot1);
+            selectBoardstate.setInt(2, boardstate.slot2);
+            selectBoardstate.setInt(3, boardstate.slot3);
+            selectBoardstate.setInt(4, boardstate.slot4);
+            selectBoardstate.setInt(5, boardstate.slot5);
+            selectBoardstate.setInt(6, boardstate.slot6);
+            selectBoardstate.setInt(7, boardstate.opponent_slot1);
+            selectBoardstate.setInt(8, boardstate.opponent_slot2);
+            selectBoardstate.setInt(9, boardstate.opponent_slot3);
+            selectBoardstate.setInt(10, boardstate.opponent_slot4);
+            selectBoardstate.setInt(11, boardstate.opponent_slot5);
+            selectBoardstate.setInt(12, boardstate.opponent_slot6);
+            ResultSet resultSet = selectBoardstate.executeQuery();
+            if (resultSet.last()) {
+                if (resultSet.getInt("times_seen") >= 20) { // Konstante hier adjustieren
+                    boardstateId = resultSet.getLong("id");
+                    selectSlots.setLong(1, boardstateId);
+                    resultSet = selectSlots.executeQuery();
+                    double winLossRatio = 0.0;
+                    double bestRatio = -1.0;
+                    while (resultSet.next()) {
+                        winLossRatio = resultSet.getInt("times_won") * 1.0/resultSet.getInt("times_lost");
+                        if (winLossRatio > bestRatio) {
+                            bestRatio = winLossRatio;
+                            bestSlot = resultSet.getInt("chosen_slot");
+                        }
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return bestSlot;
+    }
+
     // select count(*) from boardstate
     // select * from boardstate
     // select count(*) from chosen_slots
     // select * from chosen_slots
+    // select * from boardstate where slot1 = 6 and slot2 = 6 and slot3 = 6 and slot4 = 6 and slot5 = 6 and slot 6 = 6
+
     @Override
     public MancalaAgentAction doTurn(int computationTime, MancalaGame game) {
         long start = System.currentTimeMillis();
@@ -279,16 +336,31 @@ public class MagicAITest implements MancalaAgent {
 
         MCTSTree root = new MCTSTree((MyMancalaGame) game);
 
-        try {
-            connection = DriverManager.getConnection("jdbc:h2:./data", "", "");
-        } catch (SQLException throwables) {
-            throwables.printStackTrace();
-        }
-        if (connection != null) {
-            System.out.println("connection established");
+        boolean bookMoveAvailable = false;
+
+        List<Boardstate> boardstates = new ArrayList<>();
+        boardstates = saveCurrentBoardstate(boardstates, game, "-1");
+        Boardstate boardstate = boardstates.get(0);
+        int numberofStones = boardstate.slot1 + boardstate.slot2 + boardstate.slot3 + boardstate.slot4 + boardstate.slot5
+                + boardstate.slot6 + boardstate.opponent_slot1 + boardstate.opponent_slot2 + boardstate.opponent_slot3 +
+                boardstate.opponent_slot4 + boardstate.opponent_slot5 + boardstate.opponent_slot6;
+
+        double bookWeight = getBookWeight(numberofStones);
+        String bookMove = "";
+        System.out.println("Chance to search for a book move: " + bookWeight);
+        if (r.nextInt(1000000) <= 1000000.0 * bookWeight) {
+            int bookSlot = getBookMove(boardstate);
+            if (bookSlot > 0) {
+                bookMoveAvailable = true;
+                bookMove = getSlotId(bookSlot, game.getState().getCurrentPlayer());
+                System.out.println("Book move found!");
+            } else {
+                System.out.println("No book move found.");
+            }
+        } else {
+            System.out.println("Not searching for a book move.");
         }
 
-        
 
         while ((System.currentTimeMillis() - start) < (computationTime*1000 - 100)) {
             MCTSTree best = treePolicy(root);
@@ -297,16 +369,25 @@ public class MagicAITest implements MancalaAgent {
         }
 
         MCTSTree selected = root.getBestNode();
-        System.out.println("Selected action " + selected.winCount + " / " + selected.visitCount);
-
-        if (connection != null) {
-            try {
-                connection.close();
-            } catch (SQLException throwables) {
-                throwables.printStackTrace();
-            }
+        String selectedSlot = "";
+        System.out.println("MCTS move id: " + selected.action);
+        if (bookMoveAvailable) {
+            selectedSlot = bookMove;
+            System.out.println("Selected bookmove (id " + selectedSlot + ")");
+        } else {
+            selectedSlot = selected.action;
+            System.out.println("Selected MCTS move (id " + selectedSlot + ")");
         }
-        return new MyMancalaAgentAction(selected.action);
+
+//        if (connection != null) {
+//            try {
+//                connection.close();
+//            } catch (SQLException throwables) {
+//                throwables.printStackTrace();
+//            }
+//        }
+
+        return new MyMancalaAgentAction(selectedSlot);
     }
 
     private void backup(MCTSTree current, WinState winState) {

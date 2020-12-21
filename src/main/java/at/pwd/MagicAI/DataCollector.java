@@ -320,13 +320,13 @@ public class DataCollector {
         myMancalaState.setCurrentPlayer(0);
         final MyMancalaGame originalGame = new MyMancalaGame(myMancalaState, myMancalaBoard);
 
-        MancalaAgent player1 = new MagicAITest();
+        MancalaAgent player1 = new TU_SGP_MagicAI_AI();
         MancalaAgent player2 = new MagicAITest();
         MancalaAgent currentPlayer = player1;
         MyMancalaGame game;
         List<Boardstate> boardstates = new ArrayList<>();
 
-        int gamesToPlay = 150;
+        int gamesToPlay = 200;
         int player1WonGames = 0;
         int player2WonGames = 0;
 
@@ -337,7 +337,7 @@ public class DataCollector {
 
             while (game.checkIfPlayerWins().getState() == WinState.States.NOBODY) {
                 System.out.println("Turn of player " + (game.getState().getCurrentPlayer() +1));
-                MyMancalaAgentAction action = (MyMancalaAgentAction) currentPlayer.doTurn(10, game);
+                MyMancalaAgentAction action = (MyMancalaAgentAction) currentPlayer.doTurn(10, game); // set computation time in seconds here
                 System.out.println("Player " + (game.getState().getCurrentPlayer() +1) + " chose slot with id " + action.getId());
                 boardstates = saveCurrentBoardstate(boardstates, game, action.getId());
                 AgentAction.NextAction nextAction = action.applyAction(game);
