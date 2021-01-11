@@ -1,5 +1,6 @@
 package at.pwd.MagicAI;
 import at.pwd.MagicAI.mancala.MyMancalaGame;
+import at.pwd.MagicAI.mancala.MyMancalaState;
 import at.pwd.MagicAI.mancala.agent.MyMancalaAgentAction;
 import at.pwd.boardgame.game.base.WinState;
 import at.pwd.boardgame.game.mancala.MancalaGame;
@@ -8,9 +9,7 @@ import at.pwd.boardgame.game.mancala.agent.MancalaAgent;
 import at.pwd.boardgame.game.mancala.agent.MancalaAgentAction;
 
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 public class MagicAITest implements MancalaAgent {
     private Random r = new Random();
@@ -29,6 +28,7 @@ public class MagicAITest implements MancalaAgent {
     private class MCTSTree {
         private int visitCount;
         private int winCount;
+        private double seed;
 
         private MyMancalaGame game;
         private WinState winState;
@@ -36,10 +36,11 @@ public class MagicAITest implements MancalaAgent {
         private List<MCTSTree> children;
         String action;
 
-        MCTSTree(MyMancalaGame game) {
+        MCTSTree(MyMancalaGame game, double seed) {
             this.game = game;
             this.children = new ArrayList<>();
             this.winState = game.checkIfPlayerWins();
+            this.seed = seed;
         }
 
         boolean isNonTerminal() {
@@ -52,8 +53,12 @@ public class MagicAITest implements MancalaAgent {
             for (MCTSTree m : children) {
                 double wC = m.winCount;
                 double vC = m.visitCount;
-                double currentValue =  wC/vC + C*Math.sqrt(2*Math.log(visitCount) / vC);
-
+                double currentValue;
+                if (visitCount != 0 && m.visitCount != 0) {
+                     currentValue =  wC/vC + C*Math.sqrt(2*Math.log(visitCount) / vC) + m.seed;
+                } else {
+                    currentValue = m.seed;
+                }
 
                 if (best == null || currentValue > value) {
                     value = currentValue;
@@ -68,13 +73,13 @@ public class MagicAITest implements MancalaAgent {
             return children.size() == game.getSelectableSlots().size();
         }
 
-        MCTSTree move(String action) {
+        MCTSTree move(String action, double seed) {
             MyMancalaGame newGame = new MyMancalaGame(this.game);
             if (!newGame.selectSlot(action)) {
                 newGame.nextPlayer();
             }
 
-            MCTSTree tree = new MCTSTree(newGame);
+            MCTSTree tree = new MCTSTree(newGame, seed);
             tree.action = action;
             tree.parent = this;
 
@@ -82,13 +87,9 @@ public class MagicAITest implements MancalaAgent {
 
             return tree;
         }
-    }
 
-    // Player ids: 0 for player1, 1 for player2
-    // Depot for player1 has id 8
-    // Depot for player2 has id 1
-    // Player 1 selectable slots: 9, 10, 11, 12, 13, 14
-    // Player 2 selectable slots: 2, 3, 4, 5, 6, 7
+
+    }
 
     public MagicAITest () {
         try {
@@ -323,21 +324,64 @@ public class MagicAITest implements MancalaAgent {
         return bestSlot;
     }
 
+    private int recursiveGreedy(MyMancalaGame originalGame, int originalPlayer) {
+        MyMancalaGame gameCopy;
+        MyMancalaState originalState = originalGame.getState();
+        int currentPlayer = originalState.getCurrentPlayer();
+        int originalStonesInDepot = originalState.stonesIn(originalGame.getBoard().getDepotOfPlayer(currentPlayer));
+        int maxGain = Integer.MIN_VALUE;
+        for (String slotId : originalGame.getSelectableSlots()) {
+            gameCopy = new MyMancalaGame(originalGame);
+            boolean anotherTurn = gameCopy.selectSlot(slotId);
+            int stoneGain = gameCopy.getState().stonesIn(gameCopy.getBoard().getDepotOfPlayer(currentPlayer)) - originalStonesInDepot;
+            if (anotherTurn) {
+                stoneGain += recursiveGreedy(gameCopy, originalPlayer);
+            } else if (currentPlayer == originalPlayer) {
+                gameCopy.getState().setCurrentPlayer(currentPlayer ^ 1);
+                stoneGain -= recursiveGreedy(gameCopy, originalPlayer);
+            }
+            if (stoneGain > maxGain) {
+                maxGain = stoneGain;
+            }
+        }
+        return maxGain;
+    }
+
+    private int greedyHeuristic(MyMancalaGame game, String move) {
+        int originalPlayer = game.getState().getCurrentPlayer();
+        int originalStonesInDepot = game.getState().stonesIn(game.getBoard().getDepotOfPlayer(originalPlayer));
+        MyMancalaGame copy = new MyMancalaGame(game);
+        boolean anotherTurn = copy.selectSlot(move);
+        int gain = copy.getState().stonesIn(copy.getBoard().getDepotOfPlayer(originalPlayer)) - originalStonesInDepot;
+        if (anotherTurn) {
+            return gain + recursiveGreedy(copy, originalPlayer);
+        } else {
+            copy.nextPlayer();
+            return gain - recursiveGreedy(copy, originalPlayer);
+        }
+    }
+
+    // Player ids: 0 for player1, 1 for player2
+    // Depot for player1 has id 8
+    // Depot for player2 has id 1
+    // Player 1 selectable slots: 9, 10, 11, 12, 13, 14
+    // Player 2 selectable slots: 2, 3, 4, 5, 6, 7
+
     // select count(*) from boardstate
     // select * from boardstate
     // select count(*) from chosen_slots
     // select * from chosen_slots
-    // select * from boardstate where slot1 = 6 and slot2 = 6 and slot3 = 6 and slot4 = 6 and slot5 = 6 and slot 6 = 6
+    // select * from chosen_slots where boardstate_id = 1715520
+
 
     @Override
     public MancalaAgentAction doTurn(int computationTime, MancalaGame game) {
         long start = System.currentTimeMillis();
         this.originalState = game.getState();
 
-        MCTSTree root = new MCTSTree((MyMancalaGame) game);
+        MCTSTree root = new MCTSTree((MyMancalaGame) game, 0);
 
-        boolean bookMoveAvailable = false;
-
+        String bookMove = null;
         List<Boardstate> boardstates = new ArrayList<>();
         boardstates = saveCurrentBoardstate(boardstates, game, "-1");
         Boardstate boardstate = boardstates.get(0);
@@ -346,14 +390,13 @@ public class MagicAITest implements MancalaAgent {
                 boardstate.opponent_slot4 + boardstate.opponent_slot5 + boardstate.opponent_slot6;
 
         double bookWeight = getBookWeight(numberofStones);
-        String bookMove = "";
+
         System.out.println("Chance to search for a book move: " + bookWeight);
         if (r.nextInt(1000000) <= 1000000.0 * bookWeight) {
             int bookSlot = getBookMove(boardstate);
             if (bookSlot > 0) {
-                bookMoveAvailable = true;
                 bookMove = getSlotId(bookSlot, game.getState().getCurrentPlayer());
-                System.out.println("Book move found!");
+                System.out.println("Book move found: " + bookMove);
             } else {
                 System.out.println("No book move found.");
             }
@@ -362,6 +405,28 @@ public class MagicAITest implements MancalaAgent {
         }
 
 
+        Map<String, Integer> heuristics = new HashMap<>();
+        int maxHeuristic = Integer.MIN_VALUE;
+        int val;
+        for (String move : game.getSelectableSlots()) {
+            val = greedyHeuristic(root.game, move);
+            maxHeuristic = Math.max(val, maxHeuristic);
+            heuristics.put(move, val);
+        }
+
+        int diffFromBest;
+        double seed;
+        for (String move : game.getSelectableSlots()) {
+            val = heuristics.get(move);
+            diffFromBest = maxHeuristic - val;
+            seed = 1.0 - 0.1 * diffFromBest;
+            if (move.equals(bookMove)) {
+                seed += 0.5;
+            }
+            System.out.println("Move: " + move + ", Heuristic: " + heuristics.get(move) + ", Seed: " + seed);
+            root.move(move, seed);
+        }
+
         while ((System.currentTimeMillis() - start) < (computationTime*1000 - 100)) {
             MCTSTree best = treePolicy(root);
             WinState winning = defaultPolicy(best.game);
@@ -369,25 +434,8 @@ public class MagicAITest implements MancalaAgent {
         }
 
         MCTSTree selected = root.getBestNode();
-        String selectedSlot = "";
-        System.out.println("MCTS move id: " + selected.action);
-        if (bookMoveAvailable) {
-            selectedSlot = bookMove;
-            System.out.println("Selected bookmove (id " + selectedSlot + ")");
-        } else {
-            selectedSlot = selected.action;
-            System.out.println("Selected MCTS move (id " + selectedSlot + ")");
-        }
-
-//        if (connection != null) {
-//            try {
-//                connection.close();
-//            } catch (SQLException throwables) {
-//                throwables.printStackTrace();
-//            }
-//        }
-
-        return new MyMancalaAgentAction(selectedSlot);
+        System.out.println("Selected action " + selected.winCount + " / " + selected.visitCount);
+        return new MyMancalaAgentAction(selected.action);
     }
 
     private void backup(MCTSTree current, WinState winState) {
@@ -422,14 +470,13 @@ public class MagicAITest implements MancalaAgent {
         for(MCTSTree move : best.children)
             legalMoves.remove(move.action);
 
-        return best.move(legalMoves.get(r.nextInt(legalMoves.size())));
+
+        return best.move(legalMoves.get(r.nextInt(legalMoves.size())), 0.0);
     }
 
     private WinState defaultPolicy(MyMancalaGame game) {
         game = new MyMancalaGame(game); // copy original game
         WinState state = game.checkIfPlayerWins();
-
-        List<Boardstate> statesAndSlots = new ArrayList<>();
 
         while(state.getState() == WinState.States.NOBODY) {
             String play;
@@ -437,17 +484,10 @@ public class MagicAITest implements MancalaAgent {
                 List<String> legalMoves = game.getSelectableSlots();
                 play = legalMoves.get(r.nextInt(legalMoves.size()));
 
-                //saveCurrentBoardstate(statesAndSlots, game, play);
-
             } while(game.selectSlot(play));
             game.nextPlayer();
             state = game.checkIfPlayerWins();
         }
-
-        if (state.getState() == WinState.States.SOMEONE) {
-            //saveToDatabase(statesAndSlots, state);
-        }
-
         return state;
     }
 

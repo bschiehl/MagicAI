@@ -320,25 +320,26 @@ public class DataCollector {
         myMancalaState.setCurrentPlayer(0);
         final MyMancalaGame originalGame = new MyMancalaGame(myMancalaState, myMancalaBoard);
 
-        MancalaAgent player1 = new DefaultMCTS();
-        MancalaAgent player2 = new MagicAITest();
-        MancalaAgent currentPlayer = player1;
+        MancalaAgent player1 = new MagicAITest();
+        MancalaAgent player2 = new DefaultMCTS();
+
+        MancalaAgent currentPlayer;
         MyMancalaGame game;
         List<Boardstate> boardstates = new ArrayList<>();
 
-        int gamesToPlay = 200;
+        int gamesToPlay = 6;
         int player1WonGames = 0;
         int player2WonGames = 0;
 
-        // initial boardstate id = 1715520
         for (int i = 0; i < gamesToPlay; i++) {
             System.out.println("Game number " + (i+1));
             game = new MyMancalaGame(originalGame);
+            currentPlayer = player1;
 
             while (game.checkIfPlayerWins().getState() == WinState.States.NOBODY) {
                 System.out.println("Turn of player " + (game.getState().getCurrentPlayer() +1));
-                MyMancalaAgentAction action = (MyMancalaAgentAction) currentPlayer.doTurn(10, game); // set computation time in seconds here
-                System.out.println("Player " + (game.getState().getCurrentPlayer() +1) + " chose slot with id " + action.getId());
+                MyMancalaAgentAction action = (MyMancalaAgentAction) currentPlayer.doTurn(60, game); // set computation time in seconds here
+                System.out.println("Player " + (game.getState().getCurrentPlayer() +1) +  " (" + currentPlayer.toString() + ")" + " chose slot with id " + action.getId());
                 boardstates = saveCurrentBoardstate(boardstates, game, action.getId());
                 AgentAction.NextAction nextAction = action.applyAction(game);
                 if (nextAction == AgentAction.NextAction.NEXT_PLAYER) {

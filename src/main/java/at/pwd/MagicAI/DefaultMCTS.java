@@ -53,7 +53,7 @@ public class DefaultMCTS implements MancalaAgent {
                 double wC = m.winCount;
                 double vC = m.visitCount;
                 double currentValue =  wC/vC + C*Math.sqrt(2*Math.log(visitCount) / vC);
-
+//                System.out.println("Exploitation: " + wC/vC + ", Exploration: " + (C*Math.sqrt(2*Math.log(visitCount) / vC)) + ", Sum: " + currentValue);
 
                 if (best == null || currentValue > value) {
                     value = currentValue;
@@ -84,283 +84,12 @@ public class DefaultMCTS implements MancalaAgent {
         }
     }
 
-    // Player ids: 0 for player1, 1 for player2
-    // Depot for player1 has id 8
-    // Depot for player2 has id 1
-    // Player 1 selectable slots: 9, 10, 11, 12, 13, 14
-    // Player 2 selectable slots: 2, 3, 4, 5, 6, 7
-
-    public DefaultMCTS () {
-        try {
-            Class driver = Class.forName("org.h2.Driver");
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        }
-        try {
-            connection = DriverManager.getConnection("jdbc:h2:./data", "", "");
-            selectBoardstate = connection.prepareStatement("SELECT id, times_seen FROM boardstate WHERE slot1 = ?" +
-                    "AND slot2 = ? AND slot3 = ? AND slot4 = ? AND slot5 = ? AND " +
-                    "slot6 = ? AND opponent_slot1 = ? AND opponent_slot2 = ? AND opponent_slot3 = ? AND " +
-                    "opponent_slot4 = ? AND opponent_slot5 = ? AND opponent_slot6 = ?");
-//            updateBoardstateTimesSeen = connection.prepareStatement("UPDATE boardstate SET " +
-//                    "times_seen = ? WHERE id = ?");
-//            insertBoardstate = connection.prepareStatement("INSERT INTO boardstate VALUES " +
-//                    "(null, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)");
-//            selectChosenSlots = connection.prepareStatement("SELECT id, times_won, times_lost FROM" +
-//                    " chosen_slots WHERE boardstate_id = ? AND chosen_slot = ?");
-//            insertChosenSlots = connection.prepareStatement("INSERT INTO chosen_slots VALUES " +
-//                    "(null, ?, ?, ?, ?)");
-//            updateChosenSlotsTimesWon = connection.prepareStatement("UPDATE chosen_slots SET " +
-//                    "times_won = ? WHERE id = ?");
-//            updateChosenSlotsTimesLost = connection.prepareStatement("UPDATE chosen_slots SET " +
-//                    "times_lost = ? WHERE id = ?");
-            selectSlots = connection.prepareStatement("SELECT * FROM chosen_slots WHERE " +
-                    "boardstate_id = ?");
-        } catch (SQLException throwables) {
-            throwables.printStackTrace();
-        }
-        if (connection != null) {
-            System.out.println("connection established");
-        }
-    }
-
-    private String getSlotId(int number, int currentPlayer) {
-        if (currentPlayer == 0) {
-            return "" + (15 - number);
-        } else {
-            return "" + (1 + number);
-        }
-    }
-
-    private int getSlotNumber(String id) {
-        int slotId = Integer.parseInt(id);
-        if (slotId < 8) {
-            return slotId -1;
-        } else {
-            return 15 - slotId;
-        }
-    }
-
-    private class Boardstate {
-        int slot1;
-        int slot2;
-        int slot3;
-        int slot4;
-        int slot5;
-        int slot6;
-        int opponent_slot1;
-        int opponent_slot2;
-        int opponent_slot3;
-        int opponent_slot4;
-        int opponent_slot5;
-        int opponent_slot6;
-        int chosen_slot;
-        int current_player;
-
-        public Boardstate(int slot1, int slot2, int slot3, int slot4, int slot5, int slot6, int opponent_slot1, int opponent_slot2, int opponent_slot3, int opponent_slot4, int opponent_slot5, int opponent_slot6, int chosen_slot, int current_player) {
-            this.slot1 = slot1;
-            this.slot2 = slot2;
-            this.slot3 = slot3;
-            this.slot4 = slot4;
-            this.slot5 = slot5;
-            this.slot6 = slot6;
-            this.opponent_slot1 = opponent_slot1;
-            this.opponent_slot2 = opponent_slot2;
-            this.opponent_slot3 = opponent_slot3;
-            this.opponent_slot4 = opponent_slot4;
-            this.opponent_slot5 = opponent_slot5;
-            this.opponent_slot6 = opponent_slot6;
-            this.chosen_slot = chosen_slot;
-            this.current_player = current_player;
-        }
-    }
-
-    private List<Boardstate> saveCurrentBoardstate(List<Boardstate> boardstates, MancalaGame game, String chosenSlot) {
-        MancalaState mancalaState = game.getState();
-        int currentPlayer = mancalaState.getCurrentPlayer();
-        int currentOpponent = currentPlayer ^ 1;
-        Boardstate boardstate = new Boardstate(
-                mancalaState.stonesIn(getSlotId(1, currentPlayer)),
-                mancalaState.stonesIn(getSlotId(2, currentPlayer)),
-                mancalaState.stonesIn(getSlotId(3, currentPlayer)),
-                mancalaState.stonesIn(getSlotId(4, currentPlayer)),
-                mancalaState.stonesIn(getSlotId(5, currentPlayer)),
-                mancalaState.stonesIn(getSlotId(6, currentPlayer)),
-                mancalaState.stonesIn(getSlotId(1, currentOpponent)),
-                mancalaState.stonesIn(getSlotId(2, currentOpponent)),
-                mancalaState.stonesIn(getSlotId(3, currentOpponent)),
-                mancalaState.stonesIn(getSlotId(4, currentOpponent)),
-                mancalaState.stonesIn(getSlotId(5, currentOpponent)),
-                mancalaState.stonesIn(getSlotId(6, currentOpponent)),
-                getSlotNumber(chosenSlot),
-                currentPlayer
-        );
-        boardstates.add(boardstate);
-        return boardstates;
-    }
-
-    private void saveToDatabase(List<Boardstate> statesAndSlots, WinState state) {
-        long boardstateId = 0;
-
-        for (Boardstate boardstate: statesAndSlots) {
-            try {
-                selectBoardstate.setInt(1, boardstate.slot1);
-                selectBoardstate.setInt(2, boardstate.slot2);
-                selectBoardstate.setInt(3, boardstate.slot3);
-                selectBoardstate.setInt(4, boardstate.slot4);
-                selectBoardstate.setInt(5, boardstate.slot5);
-                selectBoardstate.setInt(6, boardstate.slot6);
-                selectBoardstate.setInt(7, boardstate.opponent_slot1);
-                selectBoardstate.setInt(8, boardstate.opponent_slot2);
-                selectBoardstate.setInt(9, boardstate.opponent_slot3);
-                selectBoardstate.setInt(10, boardstate.opponent_slot4);
-                selectBoardstate.setInt(11, boardstate.opponent_slot5);
-                selectBoardstate.setInt(12, boardstate.opponent_slot6);
-                ResultSet resultSet = selectBoardstate.executeQuery();
-                if (resultSet.last()) {
-                    boardstateId = resultSet.getLong("id");
-                    int timesSeen = resultSet.getInt("times_seen");
-                    updateBoardstateTimesSeen.setInt(1, timesSeen + 1);
-                    updateBoardstateTimesSeen.setLong(2, boardstateId);
-                    updateBoardstateTimesSeen.executeUpdate();
-                } else {
-                    insertBoardstate.setInt(1, boardstate.slot1);
-                    insertBoardstate.setInt(2, boardstate.slot2);
-                    insertBoardstate.setInt(3, boardstate.slot3);
-                    insertBoardstate.setInt(4, boardstate.slot4);
-                    insertBoardstate.setInt(5, boardstate.slot5);
-                    insertBoardstate.setInt(6, boardstate.slot6);
-                    insertBoardstate.setInt(7, boardstate.opponent_slot1);
-                    insertBoardstate.setInt(8, boardstate.opponent_slot2);
-                    insertBoardstate.setInt(9, boardstate.opponent_slot3);
-                    insertBoardstate.setInt(10, boardstate.opponent_slot4);
-                    insertBoardstate.setInt(11, boardstate.opponent_slot5);
-                    insertBoardstate.setInt(12, boardstate.opponent_slot6);
-                    insertBoardstate.executeUpdate();
-                    resultSet = selectBoardstate.executeQuery();
-                    if (resultSet.last()) {
-                        boardstateId = resultSet.getLong("id");
-                    } else {
-                        System.err.println("No boardstate inserted");
-                    }
-                }
-                boolean hasWon = state.getPlayerId() == boardstate.current_player;
-
-                selectChosenSlots.setLong(1, boardstateId);
-                selectChosenSlots.setInt(2, boardstate.chosen_slot);
-                resultSet = selectChosenSlots.executeQuery();
-                if (resultSet.last()) {
-                    int chosenSlotsId = resultSet.getInt("id");
-                    if (hasWon) {
-                        int timesWon = resultSet.getInt("times_won");
-                        updateChosenSlotsTimesWon.setInt(1, timesWon + 1);
-                        updateChosenSlotsTimesWon.setInt(2, chosenSlotsId);
-                        updateChosenSlotsTimesWon.executeUpdate();
-                    } else {
-                        int timesLost = resultSet.getInt("times_lost");
-                        updateChosenSlotsTimesLost.setInt(1, timesLost + 1);
-                        updateChosenSlotsTimesLost.setInt(2, chosenSlotsId);
-                        updateChosenSlotsTimesLost.executeUpdate();
-                    }
-                } else {
-                    insertChosenSlots.setLong(1, boardstateId);
-                    insertChosenSlots.setInt(2, boardstate.chosen_slot);
-                    if (hasWon) {
-                        insertChosenSlots.setInt(3, 1);
-                        insertChosenSlots.setInt(4, 0);
-                    } else {
-                        insertChosenSlots.setInt(3, 0);
-                        insertChosenSlots.setInt(4, 1);
-                    }
-                    insertChosenSlots.executeUpdate();
-                }
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
-    private double getBookWeight(int numberOfStones) {
-        return (7.0/12960) * (numberOfStones * numberOfStones) - (13.0/360) * numberOfStones + (4.0/5);
-    }
-
-    private int getBookMove(Boardstate boardstate) {
-        long boardstateId = 0;
-        int bestSlot = -1;
-        try {
-            selectBoardstate.setInt(1, boardstate.slot1);
-            selectBoardstate.setInt(2, boardstate.slot2);
-            selectBoardstate.setInt(3, boardstate.slot3);
-            selectBoardstate.setInt(4, boardstate.slot4);
-            selectBoardstate.setInt(5, boardstate.slot5);
-            selectBoardstate.setInt(6, boardstate.slot6);
-            selectBoardstate.setInt(7, boardstate.opponent_slot1);
-            selectBoardstate.setInt(8, boardstate.opponent_slot2);
-            selectBoardstate.setInt(9, boardstate.opponent_slot3);
-            selectBoardstate.setInt(10, boardstate.opponent_slot4);
-            selectBoardstate.setInt(11, boardstate.opponent_slot5);
-            selectBoardstate.setInt(12, boardstate.opponent_slot6);
-            ResultSet resultSet = selectBoardstate.executeQuery();
-            if (resultSet.last()) {
-                if (resultSet.getInt("times_seen") >= 20) { // Konstante hier adjustieren
-                    boardstateId = resultSet.getLong("id");
-                    selectSlots.setLong(1, boardstateId);
-                    resultSet = selectSlots.executeQuery();
-                    double winLossRatio = 0.0;
-                    double bestRatio = -1.0;
-                    while (resultSet.next()) {
-                        winLossRatio = resultSet.getInt("times_won") * 1.0/resultSet.getInt("times_lost");
-                        if (winLossRatio > bestRatio) {
-                            bestRatio = winLossRatio;
-                            bestSlot = resultSet.getInt("chosen_slot");
-                        }
-                    }
-                }
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return bestSlot;
-    }
-
-    // select count(*) from boardstate
-    // select * from boardstate
-    // select count(*) from chosen_slots
-    // select * from chosen_slots
-    // select * from boardstate where slot1 = 6 and slot2 = 6 and slot3 = 6 and slot4 = 6 and slot5 = 6 and slot 6 = 6
-
     @Override
     public MancalaAgentAction doTurn(int computationTime, MancalaGame game) {
         long start = System.currentTimeMillis();
         this.originalState = game.getState();
 
         MCTSTree root = new MCTSTree((MyMancalaGame) game);
-
-//        boolean bookMoveAvailable = false;
-
-//        List<Boardstate> boardstates = new ArrayList<>();
-//        boardstates = saveCurrentBoardstate(boardstates, game, "-1");
-//        Boardstate boardstate = boardstates.get(0);
-//        int numberofStones = boardstate.slot1 + boardstate.slot2 + boardstate.slot3 + boardstate.slot4 + boardstate.slot5
-//                + boardstate.slot6 + boardstate.opponent_slot1 + boardstate.opponent_slot2 + boardstate.opponent_slot3 +
-//                boardstate.opponent_slot4 + boardstate.opponent_slot5 + boardstate.opponent_slot6;
-//
-//        double bookWeight = getBookWeight(numberofStones);
-//        String bookMove = "";
-//        System.out.println("Chance to search for a book move: " + bookWeight);
-//        if (r.nextInt(1000000) <= 1000000.0 * bookWeight) {
-//            int bookSlot = getBookMove(boardstate);
-//            if (bookSlot > 0) {
-//                bookMoveAvailable = true;
-//                bookMove = getSlotId(bookSlot, game.getState().getCurrentPlayer());
-//                System.out.println("Book move found!");
-//            } else {
-//                System.out.println("No book move found.");
-//            }
-//        } else {
-//            System.out.println("Not searching for a book move.");
-//        }
-
 
         while ((System.currentTimeMillis() - start) < (computationTime*1000 - 100)) {
             MCTSTree best = treePolicy(root);
@@ -369,24 +98,7 @@ public class DefaultMCTS implements MancalaAgent {
         }
 
         MCTSTree selected = root.getBestNode();
-//        String selectedSlot = "";
-//        System.out.println("MCTS move id: " + selected.action);
-//        if (bookMoveAvailable) {
-//            selectedSlot = bookMove;
-//            System.out.println("Selected bookmove (id " + selectedSlot + ")");
-//        } else {
-//            selectedSlot = selected.action;
-//            System.out.println("Selected MCTS move (id " + selectedSlot + ")");
-//        }
-
-//        if (connection != null) {
-//            try {
-//                connection.close();
-//            } catch (SQLException throwables) {
-//                throwables.printStackTrace();
-//            }
-//        }
-
+        System.out.println("Selected action " + selected.winCount + " / " + selected.visitCount);
         return new MyMancalaAgentAction(selected.action);
     }
 
@@ -429,7 +141,6 @@ public class DefaultMCTS implements MancalaAgent {
         game = new MyMancalaGame(game); // copy original game
         WinState state = game.checkIfPlayerWins();
 
-        List<Boardstate> statesAndSlots = new ArrayList<>();
 
         while(state.getState() == WinState.States.NOBODY) {
             String play;
@@ -437,15 +148,9 @@ public class DefaultMCTS implements MancalaAgent {
                 List<String> legalMoves = game.getSelectableSlots();
                 play = legalMoves.get(r.nextInt(legalMoves.size()));
 
-                //saveCurrentBoardstate(statesAndSlots, game, play);
-
             } while(game.selectSlot(play));
             game.nextPlayer();
             state = game.checkIfPlayerWins();
-        }
-
-        if (state.getState() == WinState.States.SOMEONE) {
-            //saveToDatabase(statesAndSlots, state);
         }
 
         return state;
@@ -453,6 +158,6 @@ public class DefaultMCTS implements MancalaAgent {
 
     @Override
     public String toString() {
-        return "MagicAI Agent";
+        return "Default MCTS";
     }
 }
