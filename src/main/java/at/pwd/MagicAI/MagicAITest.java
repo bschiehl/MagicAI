@@ -11,6 +11,9 @@ import at.pwd.boardgame.game.mancala.agent.MancalaAgentAction;
 import java.sql.*;
 import java.util.*;
 
+/**
+ *  Test class that works with the modified engine for testing and data collection
+ */
 public class MagicAITest implements MancalaAgent {
     private Random r = new Random();
     private MancalaState originalState;

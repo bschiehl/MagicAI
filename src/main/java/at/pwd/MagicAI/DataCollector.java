@@ -14,6 +14,9 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Class that runs agents programatically using the modified engine for testing and data collection
+ */
 public class DataCollector {
     private static Connection connection;
 
@@ -320,14 +323,14 @@ public class DataCollector {
         myMancalaState.setCurrentPlayer(0);
         final MyMancalaGame originalGame = new MyMancalaGame(myMancalaState, myMancalaBoard);
 
-        MancalaAgent player1 = new MagicAITest();
-        MancalaAgent player2 = new DefaultMCTS();
+        MancalaAgent player1 = new DefaultMCTS();
+        MancalaAgent player2 = new MagicAITest();
 
         MancalaAgent currentPlayer;
         MyMancalaGame game;
         List<Boardstate> boardstates = new ArrayList<>();
 
-        int gamesToPlay = 6;
+        int gamesToPlay = 10;
         int player1WonGames = 0;
         int player2WonGames = 0;
 

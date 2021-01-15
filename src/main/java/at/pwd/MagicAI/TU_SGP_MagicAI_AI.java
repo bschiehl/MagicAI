@@ -5,9 +5,14 @@ import at.pwd.boardgame.game.mancala.MancalaState;
 import at.pwd.boardgame.game.mancala.agent.MancalaAgent;
 import at.pwd.boardgame.game.mancala.agent.MancalaAgentAction;
 
+import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.util.*;
 
+/**
+ * Class for the MagicAI Agent
+ */
 public class TU_SGP_MagicAI_AI implements MancalaAgent {
     private Random r = new Random();
     private MancalaState originalState;
@@ -16,9 +21,12 @@ public class TU_SGP_MagicAI_AI implements MancalaAgent {
     private static PreparedStatement selectBoardstate;
     private static PreparedStatement selectSlots;
 
+    // Engine implementation of a MCTS node
     private class MCTSTree {
         private int visitCount;
         private int winCount;
+
+        // seed initialized in main method with results from greedyHeuristic and database book moves
         private double seed;
 
         private MancalaGame game;
@@ -45,8 +53,9 @@ public class TU_SGP_MagicAI_AI implements MancalaAgent {
                 double wC = m.winCount;
                 double vC = m.visitCount;
                 double currentValue;
+                // since the main method initializes moves with a seed, this method can be called on trees with 0 visits
                 if (visitCount != 0 && m.visitCount != 0) {
-                    currentValue =  wC/vC + C*Math.sqrt(2*Math.log(visitCount) / vC) + m.seed;
+                    currentValue =  wC/vC + C*Math.sqrt(2*Math.log(visitCount) / vC) + m.seed; //UCB1
                 } else {
                     currentValue = m.seed;
                 }
@@ -80,14 +89,33 @@ public class TU_SGP_MagicAI_AI implements MancalaAgent {
         }
     }
 
+    /**
+     * Constructor to connect to the database
+     */
     public TU_SGP_MagicAI_AI() {
         try {
             Class driver = Class.forName("org.h2.Driver");
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
         }
+        String path = TU_SGP_MagicAI_AI.class.getClassLoader().getResource("data.mv.db").getPath();
+        String domain = "jdbc:h2:";
         try {
-            connection = DriverManager.getConnection("jdbc:h2:./data", "", "");
+            path = java.net.URLDecoder.decode(path, StandardCharsets.UTF_8.name());
+        } catch (UnsupportedEncodingException e) {
+
+        }
+        if (path.endsWith(".mv.db")) {
+            path = path.substring(0, path.length() - 6);
+        }
+        if (path.startsWith("file:")) {
+            path = path.substring(5);
+            domain = domain + "zip:";
+        }
+        String url = domain + path + ";IFEXISTS=TRUE;TRACE_LEVEL_FILE=0;TRACE_LEVEL_SYSTEM_OUT=0";
+        System.out.println(url);
+        try {
+            connection = DriverManager.getConnection(url, "", "");
             selectBoardstate = connection.prepareStatement("SELECT id, times_seen FROM boardstate WHERE slot1 = ?" +
                     "AND slot2 = ? AND slot3 = ? AND slot4 = ? AND slot5 = ? AND " +
                     "slot6 = ? AND opponent_slot1 = ? AND opponent_slot2 = ? AND opponent_slot3 = ? AND " +
@@ -102,6 +130,12 @@ public class TU_SGP_MagicAI_AI implements MancalaAgent {
         }
     }
 
+    /**
+     * Helper method that converts a number from 1 to 6 to the slot id as used by the engine
+     * @param number Slot number
+     * @param currentPlayer Player id
+     * @return The slot id corresponding to the given number and player
+     */
     private String getSlotId(int number, int currentPlayer) {
         if (currentPlayer == 0) {
             return "" + (15 - number);
@@ -110,15 +144,9 @@ public class TU_SGP_MagicAI_AI implements MancalaAgent {
         }
     }
 
-    private int getSlotNumber(String id) {
-        int slotId = Integer.parseInt(id);
-        if (slotId < 8) {
-            return slotId -1;
-        } else {
-            return 15 - slotId;
-        }
-    }
-
+    /**
+     * Helper data class to save boardstates
+     */
     private class Boardstate {
         int slot1;
         int slot2;
@@ -153,10 +181,23 @@ public class TU_SGP_MagicAI_AI implements MancalaAgent {
         }
     }
 
+    /**
+     * Parabolic function returning the probability that the agent searches for a book move in the database.
+     * The probability is high at the beginning of the game, is lowest in the mid game and gets higher again in the end game
+     * As a measure of the progress of the game the number of stones remaining in the game is used.
+     *
+     * @param numberOfStones Number of stones remaining in the game
+     * @return Probability of searching for a book move
+     */
     private double getBookWeight(int numberOfStones) {
         return (7.0/12960) * (numberOfStones * numberOfStones) - (13.0/360) * numberOfStones + (4.0/5);
     }
 
+    /**
+     * Method that looks for a book move in the database for a given boardstate
+     * @param boardstate The boardstate for which to look for a book move
+     * @return A number from 1 to 6 representing the slot that the database considers a book move
+     */
     private int getBookMove(Boardstate boardstate) {
         long boardstateId = 0;
         int bestSlot = -1;
@@ -175,12 +216,14 @@ public class TU_SGP_MagicAI_AI implements MancalaAgent {
             selectBoardstate.setInt(12, boardstate.opponent_slot6);
             ResultSet resultSet = selectBoardstate.executeQuery();
             if (resultSet.last()) {
-                if (resultSet.getInt("times_seen") >= 20) { // Konstante hier adjustieren
+                // Moves only get considered if the database has seen this boardstate 20 or more times
+                if (resultSet.getInt("times_seen") >= 20) {
                     boardstateId = resultSet.getLong("id");
                     selectSlots.setLong(1, boardstateId);
                     resultSet = selectSlots.executeQuery();
                     double winLossRatio = 0.0;
                     double bestRatio = -1.0;
+                    // find the move with the best winrate
                     while (resultSet.next()) {
                         winLossRatio = resultSet.getInt("times_won") * 1.0/resultSet.getInt("times_lost");
                         if (winLossRatio > bestRatio) {
@@ -196,6 +239,11 @@ public class TU_SGP_MagicAI_AI implements MancalaAgent {
         return bestSlot;
     }
 
+    /**
+     * Helper method that returns a Boardstate object from an instance of MancalaGame, representing the current boardstate
+     * @param game The current game
+     * @return The Boardstate of the current game
+     */
     private Boardstate saveCurrentBoardstate(MancalaGame game) {
         MancalaState mancalaState = game.getState();
         int currentPlayer = mancalaState.getCurrentPlayer();
@@ -218,6 +266,13 @@ public class TU_SGP_MagicAI_AI implements MancalaAgent {
         return boardstate;
     }
 
+    /**
+     * Helper recursive method for the greedy heuristic to account for the agent playing multiple consecutive moves
+     * @param originalGame The current game
+     * @param originalPlayer The current player
+     * @return The maximum number of stones the agent can gain by repeating moves minus the maximum number of stones the
+     * opponent can gain with their next move
+     */
     private int recursiveGreedy(MancalaGame originalGame, int originalPlayer) {
         MancalaGame gameCopy;
         MancalaState originalState = originalGame.getState();
@@ -241,6 +296,15 @@ public class TU_SGP_MagicAI_AI implements MancalaAgent {
         return maxGain;
     }
 
+    /**
+     * Method to be called for the greedy heuristic. The heuristic is inspired by the minimax algorithm.
+     * For a given move, the method gives the difference between the maximum number of stones this agent can gain with this move and
+     * the maximum number of stones the opponent can then get with their next move
+     * @param game The current game
+     * @param move A possible move the agent can make
+     * @return The maximum number of stones this agent can gain by playing the move minus the maximum number of stones the
+     * opponent can gain with their next move
+     */
     private int greedyHeuristic(MancalaGame game, String move) {
         int originalPlayer = game.getState().getCurrentPlayer();
         int originalStonesInDepot = game.getState().stonesIn(game.getBoard().getDepotOfPlayer(originalPlayer));
@@ -255,6 +319,12 @@ public class TU_SGP_MagicAI_AI implements MancalaAgent {
         }
     }
 
+    /**
+     * Main method that gets called by the engine and returns the chosen move
+     * @param computationTime the computation time in seconds
+     * @param game instance of the game for which a move should be returned
+     * @return The action chosen by the agent
+     */
 
     @Override
     public MancalaAgentAction doTurn(int computationTime, MancalaGame game) {
@@ -263,6 +333,7 @@ public class TU_SGP_MagicAI_AI implements MancalaAgent {
 
         MCTSTree root = new MCTSTree(game, 0.0);
 
+        // save current boardstate in an object to query the database
         String bookMove = null;
         Boardstate boardstate = saveCurrentBoardstate(game);
         int numberofStones = boardstate.slot1 + boardstate.slot2 + boardstate.slot3 + boardstate.slot4 + boardstate.slot5
@@ -271,6 +342,7 @@ public class TU_SGP_MagicAI_AI implements MancalaAgent {
 
         double bookWeight = getBookWeight(numberofStones);
 
+        // search for a book move with a probability of bookWeight and save it if found
         System.out.println("Chance to search for a book move: " + bookWeight);
         if (r.nextInt(1000000) <= 1000000.0 * bookWeight) {
             int bookSlot = getBookMove(boardstate);
@@ -284,6 +356,8 @@ public class TU_SGP_MagicAI_AI implements MancalaAgent {
             System.out.println("Not searching for a book move.");
         }
 
+        // Save values returned by greedy heuristic in a map with the respective moves
+        // Find maximum heuristic value
         Map<String, Integer> heuristics = new HashMap<>();
         int maxHeuristic = Integer.MIN_VALUE;
         int val;
@@ -293,6 +367,8 @@ public class TU_SGP_MagicAI_AI implements MancalaAgent {
             heuristics.put(move, val);
         }
 
+        // Calculate seeds from greedy heuristic values and book move
+        // Expand child nodes of root and initialize their seeds
         int diffFromBest;
         double seed;
         for (String move : game.getSelectableSlots()) {
@@ -306,7 +382,8 @@ public class TU_SGP_MagicAI_AI implements MancalaAgent {
             root.move(move, seed);
         }
 
-        while ((System.currentTimeMillis() - start) < (computationTime*1000 - 1000)) {
+        // run Monte Carlo Tree Search
+        while ((System.currentTimeMillis() - start) < (computationTime*1000 - 500)) {
             MCTSTree best = treePolicy(root);
             WinState winning = defaultPolicy(best.game);
             backup(best, winning);
@@ -319,6 +396,7 @@ public class TU_SGP_MagicAI_AI implements MancalaAgent {
         return new MancalaAgentAction(selected.action);
     }
 
+    //Backpropagation
     private void backup(MCTSTree current, WinState winState) {
         boolean hasWon = winState.getState() == WinState.States.SOMEONE && winState.getPlayerId() == originalState.getCurrentPlayer();
 
@@ -333,6 +411,7 @@ public class TU_SGP_MagicAI_AI implements MancalaAgent {
         }
     }
 
+    // Selection
     private MCTSTree treePolicy(MCTSTree current) {
         while (current.isNonTerminal()) {
             if (!current.isFullyExpanded()) {
@@ -344,6 +423,7 @@ public class TU_SGP_MagicAI_AI implements MancalaAgent {
         return current;
     }
 
+    // Expansion
     private MCTSTree expand(MCTSTree best) {
         List<String> legalMoves = best.game.getSelectableSlots();
 
@@ -354,6 +434,7 @@ public class TU_SGP_MagicAI_AI implements MancalaAgent {
         return best.move(legalMoves.get(r.nextInt(legalMoves.size())), 0.0);
     }
 
+    // Simulation
     private WinState defaultPolicy(MancalaGame game) {
         game = new MancalaGame(game); // copy original game
         WinState state = game.checkIfPlayerWins();

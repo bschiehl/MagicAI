@@ -12,6 +12,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+/**
+ * MCTS implementation without heuristics that works with the modified engine
+ */
 public class DefaultMCTS implements MancalaAgent {
     private Random r = new Random();
     private MancalaState originalState;
