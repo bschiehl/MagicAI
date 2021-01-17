@@ -122,7 +122,7 @@ s = 1 - 0.1 * d
 
 for d being the difference of the considered move to the best move provided by the greedy heuristic and additionally
 
-s = 1 - 0.1 * d + 0.5
+s = s + 0.5
 
 
 if the considered move equals the book move.
