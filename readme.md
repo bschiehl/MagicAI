@@ -1,4 +1,4 @@
-# MagicAI Agent - ReadMe
+# Strategy Game programming - ReadMe
 
 ## Introduction
 This protocol is a documentation of the project work, a summary of selected and implemented methods and the reasoning behind the implementation.
@@ -16,16 +16,16 @@ where additional information on each of these topics is provided in the followin
 
 ### Lecture Notes
 
-The majority of the lecture consisted of a presentation of key algorithms and most notable heuristics to increase their performance. Here we relied on the the lecture video and the summaries of the team members for a first evaluation.
+The majority of the lecture consisted of a presentation of key algorithms and most notable heuristics to increase their performance. Here we relied on the the lecture video and the summaries of the team members for a first evaluation. 
 
 Besides the content provided in the main sections of the course, especially part 4 "related topics" promised additional insights as broader questions about potential approaches could be asked. Especially *game and decision theory* were taken into account to conceptualize the game situation and the move selection problem for each agent. A model was developed which can be used for simulation and evaluation of the game dynamics. Moreover, some additional ideas were included which based on the comments about *military strategy and tactics*. Both methods combined allowed us to treat the problem form a strategic game perspective and reason about particular situations which can occur during the game.
 
 ### Self-experiments and Game Observation
 
-A key part of the problem analysis consisted of actually playing the game manually to
+A key part of the problem analysis consisted of actually playing the game manually to 
 - learn and internalize the rules
-- get an intuition for the game dynamics
-- identify critical game situations
+- get an intuition for the game dynamics 
+- identify critical game situations 
 - evaluate move possibilities
 - understand the reasoning for the MCTS move selection and its potential weaknesses
 
@@ -38,7 +38,7 @@ In order to make the theories of the previous phase deducted from intuition more
 ### Literature Review
 
 The literature review was based on the references provided in the lecture and additional sources included therein, most notably:
-- Browne at al: A Survey of Monte Carlo Tree Search Methods (2012)
+- Browne at al: A Survey of Monte Carlo Tree Search Methods (2012) 
 - Ramanujan and Selman: Trade-Offs in Sampling-Based Adversarial Planning (2011)
 - Lanctot et al: Monte Carlo Tree Search with Heuristic Evaluations using Implicit Minmax Backups (2014)
 - Gelly and Silver: Monte Carlo Tree Search and Rapid Action Value Estimation in Computer Go
@@ -52,14 +52,14 @@ This literature review confirmed the decisions made about possible heuristic imp
 We assume a space $X$ of all possible states for which $x \in X$ is a realized state of the game. In the case of Mankala the state space $X \in \mathbb{N}^{14}$ results from the unification of the spaces $X_b$ with $D$ and describes the quantities of the stones in the respective houses. Here $X_b \in \mathbb{N}^{12}$ describes the board and $D \in \mathbb{N}^{2}$ the depots of each player. We can denote:
 
 $$
-x   = \begin{pmatrix}
-x_1 \\
-x_2 \\
-\vdots \\
-x_{12} \\
-d_1 \\
-d_2
-\end{pmatrix} \in \mathbb{N}^{14}
+  x   = \begin{pmatrix}
+    x_1 \\
+    x_2 \\
+    \vdots \\
+    x_{12} \\
+    d_1 \\
+    d_2 
+  \end{pmatrix} \in \mathbb{N}^{14}
 $$
 
 Visualized from the perspective of player one, the game state $x$ can be written as:
@@ -79,7 +79,7 @@ Further we assume time $t \in \mathbb{N}$ to be discrete and to describe the num
 We define a move as an action $u_a \in U (x)$ taken by the player $a \in \{1,2\}$ which is selected from the space of all admissible actions $\mathcal{A}$. This action is defined as the selection of the house which stones shall be distributed according to the rules of the game:
 
 $$
-u_a =
+ u_a =
 \begin{cases}
 X_b \to \{1,2,3,4,5,6 \}   \\
 x_i \mapsto i \mod 6
@@ -92,11 +92,11 @@ We further define a mapping $f: X \cup U \to X^+$ which encodes a state transiti
 $$
 f(u_a,x) = \begin{cases}
 X \cup U \to X^+   \\
-(x,u_a) \mapsto x^+
+(x,u_a) \mapsto x^+ 
 \end{cases}
 $$
 
-for which the stones of the selected house are distributed individually among subsequent houses resp. depots in a counterclockwise fashion until no more stones are left. The future state for *regular* moves is defined as:
+for which the stones of the selected house are distributed individually among subsequent houses resp. depots in a counterclockwise fashion until no more stones are left. The future state for *regular* moves is defined as: 
 $$
 x_{i-1}^+ =x_{i-1}+1 \hspace{1cm} \text{for houses} \\
 d_{a}^+ =d_{a}+1 \hspace{1.7cm} \text{for depots}
@@ -106,17 +106,17 @@ $$
 
 A **move repetition** is possible if the last stone of each distribution is laid into the player's own depot. This is always the case when $x_i=i$ for $i \in \{1,..,6 \}$ $\mod 2$. In the case of a move repetition the players depot count is increased by one and it is his move again.
 
-A **capture** is possible if the last stone of each distribution is laid into one of the player's houses which is empty (i.e $x_i=0$).
+A **capture** is possible if the last stone of each distribution is laid into one of the player's houses which is empty (i.e $x_i=0$). 
 This can be the case when:
 - for a $x$ there is an $x_i=0$ and an $x_j=n$ with $j>i$ such that $n=j-i$.
-- for a $x$ there is an $x_i=n$ and an $x_j=0$ with $j>i$ such that $12-j+i = n$.
+- for a $x$ there is an $x_i=n$ and an $x_j=0$ with $j>i$ such that $12-j+i = n$. 
 
 In the case of a capture the player's depot count is increased by one *plus* the number of the stones in the opponents opposite house which are captured. Herein two houses are considered to be *opposite* if their index numbers sum up to 13.  Afterwards it is his opponent's turn to play.
 
 
 ### Move evaluation
 
-An evaluation function is a mapping $v: X \cup U \to \mathbb{N}$ that returns for each state of the game and the respective action the maximal number of stones that could be added to the own depot.
+An evaluation function is a mapping $v: X \cup U \to \mathbb{N}$ that returns for each state of the game and the respective action the maximal number of stones that could be added to the own depot. 
 
 $$
 v(u_a,x) = \begin{cases}
@@ -152,7 +152,7 @@ $$
 V=v(x,u_a) - v(x^+,u_b)
 $$
 
-as the game situation is symmetric, both opponents can use the same value function and gains to one player can be interpreted as losses to the other player.
+as the game situation is symmetric, both opponents can use the same value function and gains to one player can be interpreted as losses to the other player. 
 
 
 ### Edge Case Analysis
@@ -199,7 +199,7 @@ All in all these considerations led us to define the following agent requirement
 
 ## Agent requirements
 
-The literature review shows, that the performance of the MCTS can be improved significantly with the mere implementation of a few simple heuristics. However it becomes apparent from the game observation that primitive "human" moves which have huge gains and can be seen easily are often overlooked by the MCTS agent.
+The literature review shows, that the performance of the MCTS can be improved significantly with the mere implementation of a few simple heuristics. However it becomes apparent from the game observation that primitive "human" moves which have huge gains and can be seen easily are often overlooked by the MCTS agent. 
 
 Therefore the agent should perform an improved MCTS search to find its next move, but it should also be equipped with an evaluation function as introduced above to counteract its weaknesses.
 
@@ -210,7 +210,7 @@ Moreover, additional improvements can be made when an opening and endgame book i
 - During the endgame: analogous to the opening
 - In a game situation where it can be captured or repeated the value function should be used or partially included in the move selection
 - After each move to mitigate the possibility of attractive moves for the opponent the extended value function should be used or partially included in the move selection.
-
+    
 ### Move requirements
 We arrive at the following **requirements** for the move selection
 
@@ -295,3 +295,4 @@ if the considered move equals the book move.
 To be able to assess the quality of the implemented agent the same procedure was applied which was already used collect data for the game database. The implemented agent was scheduled to compete against the provided standard MCTS agent and delivered the following results:
 - stat 1
 - stat 2
+
