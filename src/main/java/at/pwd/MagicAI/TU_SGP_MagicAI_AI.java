@@ -12,6 +12,8 @@ import java.util.*;
 
 /**
  * Class for the MagicAI Agent
+ *
+ * created by bschiehl 2021/01/17
  */
 public class TU_SGP_MagicAI_AI implements MancalaAgent {
     private Random r = new Random();

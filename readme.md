@@ -1,5 +1,5 @@
 # Strategy Game Programming - MagicAI Agent
-
+Authors: Krzysztof Paruch, Bernhard Schiehl
 ## Introduction
 This protocol is a documentation of the project work, a summary of selected and implemented methods and the reasoning behind the implementation.
 [Click here for a longer version including mathematical background.](https://hackmd.io/T9SSf5P8RFO-38MDFC_6qA?view)
